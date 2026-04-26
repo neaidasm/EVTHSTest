@@ -515,12 +515,7 @@ function mapRecord(r) {
 
   // ── Coordinator — normalise case variants ──
   let coord = String(g('grp_details/block_coordinator')||'').trim();
-  const cl = coord.toLowerCase();
-  if      (cl.includes('rohit'))     coord = 'Rohit Kharel';
-  else if (cl.includes('mayuri'))    coord = 'Mayuri Kurmi';
-  else if (cl.includes('dilip'))     coord = 'Dilip Pariga';
-  else if (cl.includes('aditi'))     coord = 'Aditi Saikia';
-  else if (cl.includes('madhushri')) coord = 'Madhushri Dutta';
+  coord = normCoordName(coord) || coord;
 
   const toTitle = s => s.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
 
@@ -639,9 +634,10 @@ function mapRecord(r) {
 ═══════════════════════════════════════════════════════════ */
 let ALL_DATA   = [];
 let isFetching     = false;
-let MO_TOTAL         = 0;   // sum of MOs trained from mo_trained.json
-let MEETINGS_TOTAL   = 0;   // count of block meetings from block_meetings.json
-let MEETINGS_BY_COORD = [0,0,0,0,0]; // per-coordinator meeting counts [Rohit,Mayuri,Dilip,Aditi,Madhushri]
+let MO_TOTAL          = 0;   // sum of MOs trained from mo_trained.json
+let MEETINGS_RAW      = [];  // raw block meeting records for filtering
+let MEETINGS_TOTAL    = 0;   // unfiltered total (used as fallback)
+let MEETINGS_BY_COORD = [0,0,0,0,0]; // unfiltered per-coordinator counts
 let dataSource = 'seed'; // 'seed' | 'live'
 
 const GH_OWNER    = 'neaidasm';
@@ -656,6 +652,17 @@ const GH_HEADERS  = {
 };
 
 /* Load the latest JSON from the data folder and update the dashboard */
+/* Shared coordinator name normaliser — used by both main form and meetings */
+function normCoordName(name) {
+  const cl = String(name||'').toLowerCase();
+  if (cl.includes('rohit'))     return 'Rohit Kharel';
+  if (cl.includes('mayuri'))    return 'Mayuri Kurmi';
+  if (cl.includes('dilip'))     return 'Dilip Pariga';
+  if (cl.includes('aditi'))     return 'Aditi Saikia';
+  if (cl.includes('madhushri')) return 'Madhushri Dutta';
+  return null;
+}
+
 /* Load all 3 data files and update the dashboard */
 async function fetchData() {
   if (isFetching) return;
@@ -700,21 +707,11 @@ async function fetchData() {
       const meetJson = await meetResp.json();
       const meetRecs  = meetJson.results || [];
       MEETINGS_TOTAL  = meetRecs.length;
+      MEETINGS_RAW    = meetRecs; // store for filter-aware rendering
 
-      // Normalise coordinator name (same fuzzy match as main form)
-      const normCoord = name => {
-        const cl = String(name||'').toLowerCase();
-        if (cl.includes('rohit'))     return 'Rohit Kharel';
-        if (cl.includes('mayuri'))    return 'Mayuri Kurmi';
-        if (cl.includes('dilip'))     return 'Dilip Pariga';
-        if (cl.includes('aditi'))     return 'Aditi Saikia';
-        if (cl.includes('madhushri')) return 'Madhushri Dutta';
-        return null;
-      };
-
-      // Count per coordinator
+      // Pre-compute unfiltered coordinator counts
       MEETINGS_BY_COORD = COORDS.map(c =>
-        meetRecs.filter(r => normCoord(r['block_coordinator']) === c).length
+        meetRecs.filter(r => normCoordName(r['block_coordinator']) === c).length
       );
     }
 
@@ -847,7 +844,44 @@ function renderTVA(data){
   const hwc   = data.filter(r=>r.facility==='HWC').length;
   const vhsnd = data.filter(r=>r.facility==='VHSND').length;
   const phcp  = data.filter(r=>r.facility==='PHC'||r.facility==='PMSMA site').length;
-  const achs  = [hwc, vhsnd, phcp, MEETINGS_TOTAL, MO_TOTAL];
+
+  // ── Filter meetings using the same active filters as main data ──
+  let meetFiltered = MEETINGS_RAW;
+
+  // Filter by coordinator
+  if (filters.coord && filters.coord.length > 0) {
+    meetFiltered = meetFiltered.filter(r =>
+      filters.coord.includes(normCoordName(r['block_coordinator']))
+    );
+  }
+  // Filter by block
+  if (filters.block && filters.block.length > 0) {
+    meetFiltered = meetFiltered.filter(r => {
+      const b = String(r['block']||'').trim().replace(/_/g,' ').replace(/\w/g,c=>c.toUpperCase());
+      return filters.block.includes(b);
+    });
+  }
+  // Filter by district
+  if (filters.district && filters.district.length > 0) {
+    meetFiltered = meetFiltered.filter(r => {
+      const d = String(r['district']||'').trim().replace(/\w/g,c=>c.toUpperCase());
+      return filters.district.includes(d);
+    });
+  }
+  // Filter by date range
+  if (filters.dateFrom) {
+    meetFiltered = meetFiltered.filter(r => r['meeting_date'] >= filters.dateFrom);
+  }
+  if (filters.dateTo) {
+    meetFiltered = meetFiltered.filter(r => r['meeting_date'] <= filters.dateTo);
+  }
+
+  const meetCount     = meetFiltered.length;
+  const meetByCoord   = COORDS.map(c =>
+    meetFiltered.filter(r => normCoordName(r['block_coordinator']) === c).length
+  );
+
+  const achs  = [hwc, vhsnd, phcp, meetCount, MO_TOTAL];
   const tgts  = [TARGETS.hwc, TARGETS.vhsnd, TARGETS.phc_pmsma, TARGETS.meetings, TARGETS.mos];
   const lbls  = ['HWC Monitored','VHSND Monitored','PHC/PMSMA Monitored','Block Meetings','MOs Trained'];
   const clrs  = ['#1CABE2','#80BD41','#374EA2','#FFC20E','#E2231A'];
@@ -888,7 +922,7 @@ function renderTVA(data){
     if(i<4){
       const vals = i<3
         ? COORDS.map((_,ci)=>coordData[ci][['hwc','vhsnd','phcp'][i]])
-        : MEETINGS_BY_COORD;
+        : meetByCoord;
       const ctgtArr = [COORD_TARGETS.hwc,COORD_TARGETS.vhsnd,COORD_TARGETS.phc_pmsma,COORD_TARGETS.meetings][i];
       h+='<div class="coord-strip">';
       COORDS.forEach((c,ci)=>{
