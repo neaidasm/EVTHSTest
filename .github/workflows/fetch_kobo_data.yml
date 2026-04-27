@@ -16,7 +16,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Fetch all 3 KoboToolbox forms
+      - name: Fetch all KoboToolbox forms
         run: |
           mkdir -p data
 
@@ -38,12 +38,19 @@ jobs:
             "https://kf.kobotoolbox.org/api/v2/assets/a9n6ZVz3PkLYiZuWDcUpyz/data/?format=json&limit=3000" \
             -o data/block_meetings.json
 
+          echo "Fetching Users form..."
+          curl -s \
+            -H "Authorization: Token 376644ab507d99d198c5aadb70cc1052d58c3ff8" \
+            "https://kf.kobotoolbox.org/api/v2/assets/avh2YwRy5gFJKGEFbTFkKU/data/?format=json&limit=500" \
+            -o data/users.json
+
           python3 -c "
           import json
           for fname, label in [
               ('data/kobo_latest.json',    'Supervision'),
               ('data/mo_trained.json',     'MO Trained'),
               ('data/block_meetings.json', 'Block Meetings'),
+              ('data/users.json',          'Users'),
           ]:
               with open(fname) as f:
                   d = json.load(f)
@@ -55,7 +62,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/kobo_latest.json data/mo_trained.json data/block_meetings.json
+          git add data/kobo_latest.json data/mo_trained.json data/block_meetings.json data/users.json
           git diff --cached --quiet && echo "No new data" || \
-            git commit -m "data: update all 3 kobo forms [$(date -u '+%Y-%m-%d %H:%M UTC')]"
+            git commit -m "data: update all kobo forms [$(date -u '+%Y-%m-%d %H:%M UTC')]"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
