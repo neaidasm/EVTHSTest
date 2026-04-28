@@ -439,6 +439,7 @@ tr:hover td{background:#F0F8FF}
     <div style="display:flex;align-items:center;gap:10px">
       <div id="cl-statusDot" class="status-dot" style="background:#80BD41"></div>
       <span id="cl-lastSync" style="font-size:11px;color:#6c757d">Loading…</span>
+      <button onclick="logout()" style="background:#0058AB;border:1px solid #0058AB;color:#fff;padding:5px 12px;border-radius:20px;font-size:11px;cursor:pointer;transition:background .2s" onmouseover="this.style.background='#E2231A';this.style.borderColor='#E2231A'" onmouseout="this.style.background='#0058AB';this.style.borderColor='#0058AB'">⏻ Sign Out</button>
     </div>
   </div>
   <div style="padding:16px" id="c-client"></div>
@@ -491,6 +492,16 @@ function getSession() {
 function getUserType() {
   const s = getSession();
   return s ? (s.userType || 'internal') : 'internal';
+}
+
+function logout() {
+  localStorage.removeItem(SESSION_KEY);
+  document.getElementById('internal-shell').style.display = 'none';
+  document.getElementById('client-shell').style.display   = 'none';
+  document.getElementById('loginScreen').style.display    = 'flex';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginError').style.display = 'none';
 }
 
 function showDashboard(userType) {
@@ -587,7 +598,7 @@ async function doLogin() {
   <div class="topbar-right">
     <div id="statusDot" class="status-dot loading"></div>
     <span id="lastSync" class="last-sync">Connecting…</span>
-
+    <button onclick="logout()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;padding:5px 12px;border-radius:20px;font-size:11px;cursor:pointer;transition:background .2s" onmouseover="this.style.background='rgba(226,35,26,.5)'" onmouseout="this.style.background='rgba(255,255,255,.12)'">⏻ Sign Out</button>
   </div>
 </div>
 
