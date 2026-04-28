@@ -1047,7 +1047,7 @@ const ragSpan = p => p===null ? '<span class="na">—</span>' :
 function yPct(data, col, fac){
   const rows = fac ? data.filter(r=>r.facility===fac||r.facility===fac.replace(' site','')) : data;
   const valid = rows.filter(r=>r[col]!==null);
-  return valid.length ? pct(valid.filter(r=>r[col]===1).length, valid.length) : null;
+  return valid.length ? Math.round(valid.filter(r=>r[col]===1).length/valid.length*100) : null;
 }
 
 function showToast(msg){
@@ -1375,8 +1375,9 @@ function renderDash(data){
       });
       const src=facs?data.filter(r=>facs.some(f=>r.facility===f||r.facility.startsWith(f)||f.startsWith(r.facility))):data;
       const vd=src.filter(r=>r[col]!==null);
-      const ov=vd.length?pct(vd.filter(r=>r[col]===1).length,vd.length):null;
-      t+=`<td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${ov||0}%;background:${barClr(ov)}"></div></div><span class="bar-lbl" style="color:${barClr(ov)}">${ov!==null?ov+'%':'—'}</span></div></td>`;
+      const ov=vd.length?Math.round(vd.filter(r=>r[col]===1).length/vd.length*100):null;
+const ovClr=barClr(ov);
+      t+=`<td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${ov||0}%;background:${ovClr}"></div></div><span class="bar-lbl" style="color:${ovClr}">${ov!==null?ov+'%':'—'}</span></div></td>`;
       t+=`<td style="font-size:10px;color:#a19f9d">${note||'All'}</td></tr>`;
     });
     return t+`</tbody></table></div>`;
