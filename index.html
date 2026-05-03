@@ -1644,24 +1644,84 @@ function render(){
    CLIENT DASHBOARD — renderClientDash
 ═══════════════════════════════════════════════════════════ */
 function renderClientDash(data) {
-  const total = data.length;
-  const fc = {HWC:0,VHSND:0,PHC:0,PMSMA:0};
+  // ── Achievements from data ──
+  const hwc   = data.filter(r=>r.facility==='HWC').length;
+  const vhsnd = data.filter(r=>r.facility==='VHSND').length;
+  const phcp  = data.filter(r=>r.facility==='PHC'||r.facility==='PMSMA site').length;
+  const meetCount = MEETINGS_TOTAL; // unfiltered total for client view
+  const achs  = [hwc, vhsnd, phcp, meetCount, MO_TOTAL];
+  const tgts  = [TARGETS.hwc, TARGETS.vhsnd, TARGETS.phc_pmsma, TARGETS.meetings, TARGETS.mos];
+  const lbls  = ['HWC Monitored','VHSND Monitored','PHC/PMSMA Monitored','Block Meetings','MOs Trained'];
+  const clrs  = ['#1CABE2','#80BD41','#374EA2','#FFC20E','#E2231A'];
+  const accs  = ['blue','green','purple','amber','red'];
+
+  let h = '';
+
+  // ── KPI CARDS with target & badge ──
+  h += '<div class="kpi-row">';
+  achs.forEach((a,i)=>{
+    const p  = tgts[i]>0 ? Math.round(a/tgts[i]*100) : 0;
+    const bc = p>=80?'good':p>=50?'warn':'bad';
+    h+=`<div class="kpi ${accs[i]}">
+      <div class="kpi-lbl">${lbls[i]}</div>
+      <div class="kpi-val">${a}</div>
+      <div class="kpi-sub">of ${tgts[i]} target</div>
+      <span class="kpi-badge ${bc}">${p}% achieved</span>
+    </div>`;
+  });
+  h += '</div>';
+
+  // ── PROGRESS BARS ──
+  h += '<div class="prog-section">';
+  lbls.forEach((lbl,i)=>{
+    const a=achs[i], t=tgts[i];
+    const p=t>0?Math.round(a/t*100):0, w=Math.min(p,100);
+    h+=`<div class="prog-row">
+      <div class="prog-hdr">
+        <div class="prog-title">${lbl}</div>
+        <div class="prog-nums">Achievement: <b>${a}</b> &nbsp;|&nbsp; Target: <b>${t}</b></div>
+      </div>
+      <div class="prog-track">
+        <div class="prog-fill" style="width:${w}%;background:${clrs[i]}"><span>${p}%</span></div>
+      </div>
+    </div>`;
+  });
+  h += '</div>';
+
+  // ── TARGET VS ACHIEVEMENT CHART ──
+  h += `<div class="chart-grid">
+    <div class="cc">
+      <div class="cc-head">Target vs Achievement</div>
+      <div class="cc-sub">All 5 programme indicators</div>
+      <div class="cwrap" style="height:260px"><canvas id="cv-cl-tva-bar"></canvas></div>
+    </div>
+    <div class="cc">
+      <div class="cc-head">Facility-wise Visit Distribution</div>
+      <div class="cc-sub">Supervisory visits across facility types</div>
+      <div class="cwrap" style="height:260px"><canvas id="cv-cl-tva-fac"></canvas></div>
+      <div class="leg" id="cl-tva-leg"></div>
+    </div>
+  </div>`;
+
+  // ── DIVIDER ──
+  h += `<div style="border-top:2px solid #C9E8F5;margin:20px 0 16px;"></div>
+  <div style="font-size:13px;font-weight:800;color:#0058AB;letter-spacing:.3px;margin-bottom:14px">📊 Programme Overview</div>`;
+
+  // ── OLD TVA: KPI cards (visits + outcomes) ──
+  const total   = data.length;
+  const fc      = {HWC:0,VHSND:0,PHC:0,PMSMA:0};
   data.forEach(r=>{
     if(r.facility==='HWC') fc.HWC++;
     else if(r.facility==='VHSND') fc.VHSND++;
     else if(r.facility==='PHC') fc.PHC++;
     else if(r.facility==='PMSMA site') fc.PMSMA++;
   });
+  const pwScr     = data.reduce((s,r)=>s+(r.vhsnd_B3||0)+(r.hwc_B2||0)+(r.phc_B3||0)+(r.pmsma_B11||0),0);
+  const hivReact  = data.reduce((s,r)=>s+(r.vhsnd_B4||0)+(r.hwc_B3||0)+(r.phc_B2||0)+(r.pmsma_B12h||0),0);
+  const syphReact = data.reduce((s,r)=>s+(r.phc_B4||0)+(r.pmsma_B12s||0),0);
+  const pct2      = (a,b) => b>0?(a/b*100).toFixed(1)+'%':'—';
+  const sumF      = (rows,f) => rows.reduce((s,r)=>s+(r[f]||0),0);
 
-  const pwScr    = data.reduce((s,r)=>s+(r.vhsnd_B3||0)+(r.hwc_B2||0)+(r.phc_B3||0)+(r.pmsma_B11||0),0);
-  const hivReact = data.reduce((s,r)=>s+(r.vhsnd_B4||0)+(r.hwc_B3||0)+(r.phc_B2||0)+(r.pmsma_B12h||0),0);
-  const syphReact= data.reduce((s,r)=>s+(r.phc_B4||0)+(r.pmsma_B12s||0),0);
-  const pct = (a,b) => b>0?(a/b*100).toFixed(1)+'%':'—';
-  const sumF = (rows,f) => rows.reduce((s,r)=>s+(r[f]||0),0);
-
-  let h = '';
-
-  // ── KPI CARDS + STACKED BAR ──
   h += `<div class="kpi-row">
     <div class="kpi blue"><div class="kpi-lbl">Total Visits</div><div class="kpi-val">${total}</div></div>
     <div class="kpi teal"><div class="kpi-lbl">HWC</div><div class="kpi-val">${fc.HWC}</div></div>
@@ -1669,18 +1729,18 @@ function renderClientDash(data) {
     <div class="kpi purple"><div class="kpi-lbl">PHC</div><div class="kpi-val">${fc.PHC}</div></div>
     <div class="kpi green"><div class="kpi-lbl">PMSMA</div><div class="kpi-val">${fc.PMSMA}</div></div>
     <div class="kpi red"><div class="kpi-lbl">PW Screened</div><div class="kpi-val">${pwScr.toLocaleString()}</div></div>
-    <div class="kpi navy"><div class="kpi-lbl">HIV Reactive</div><div class="kpi-val">${hivReact}</div><div class="kpi-sub">${pct(hivReact,pwScr)}</div></div>
-    <div class="kpi navy"><div class="kpi-lbl">Syphilis Reactive</div><div class="kpi-val">${syphReact}</div><div class="kpi-sub">${pct(syphReact,pwScr)}</div></div>
+    <div class="kpi navy"><div class="kpi-lbl">HIV Reactive</div><div class="kpi-val">${hivReact}</div><div class="kpi-sub">${pct2(hivReact,pwScr)}</div></div>
+    <div class="kpi navy"><div class="kpi-lbl">Syphilis Reactive</div><div class="kpi-val">${syphReact}</div><div class="kpi-sub">${pct2(syphReact,pwScr)}</div></div>
   </div>`;
 
-  // ── STACKED BAR — facility visits ──
+  // ── OLD TVA: Stacked facility bar ──
   h += `<div class="cc" style="margin-bottom:16px">
     <div class="cc-head">Facility-wise Visit Distribution</div>
     <div class="cc-sub">Total ${total} supervisory visits across all facility types</div>
     <div class="cwrap" style="height:120px"><canvas id="cv-cl-fac"></canvas></div>
   </div>`;
 
-  // ── EQUIPMENT & COLD CHAIN — FRONT PAGE (highlighted) ──
+  // ── OLD TVA: Equipment & Cold Chain tiles ──
   const ccFields = [
     ['Refrigerator Functional','ACC1'],['Temp +2°C to +8°C','ACC2'],
     ['Temp Chart Updated','ACC3'],['Power Backup','ACC5'],
@@ -1703,7 +1763,7 @@ function renderClientDash(data) {
   });
   h += `</div></div>`;
 
-  // ── 4 KEY SUPPLY INDICATORS ──
+  // ── OLD TVA: Key supply indicators ──
   const keySupply=[
     {lbl:'RDT Kits Available',field:'A1'},
     {lbl:'Referral Slips',field:'A8'},
@@ -1727,7 +1787,7 @@ function renderClientDash(data) {
   });
   h+=`</div></div>`;
 
-  // ── SPIDER CHARTS — one per facility type ──
+  // ── OLD TVA: Spider charts per facility ──
   h+=`<div class="tbl-card" style="margin-bottom:16px">
     <div class="tbl-title"><span class="tag t-tr">COMPLIANCE</span>360° Compliance View by Facility Type</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
@@ -1742,45 +1802,43 @@ function renderClientDash(data) {
     </div>
   </div>`;
 
-  // ── OUTCOMES ──
-  const v=data.filter(r=>r.facility==='VHSND');
-  const hw=data.filter(r=>r.facility==='HWC');
-  const ph=data.filter(r=>r.facility==='PHC');
-  const pm=data.filter(r=>r.facility==='PMSMA site');
+  // ── OLD TVA: Outcomes by facility type ──
+  const v  = data.filter(r=>r.facility==='VHSND');
+  const hw = data.filter(r=>r.facility==='HWC');
+  const ph = data.filter(r=>r.facility==='PHC');
+  const pm = data.filter(r=>r.facility==='PMSMA site');
 
   h+=`<div class="tbl-card" style="margin-bottom:16px">
     <div class="tbl-title"><span class="tag t-sup">OUTCOMES</span>Service Delivery & HIV/Syphilis Outcomes</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">`;
-
   const outcomeBlocks = [
     { title:'VHSND', clr:'#80BD41', rows:[
-      ['PW Attending',sumF(v,'vhsnd_B1'),''],
-      ['PW Screened',sumF(v,'vhsnd_B3'),pct(sumF(v,'vhsnd_B3'),sumF(v,'vhsnd_B1'))],
-      ['HIV Reactive',sumF(v,'vhsnd_B4'),pct(sumF(v,'vhsnd_B4'),sumF(v,'vhsnd_B3'))],
+      ['PW Attending',   sumF(v,'vhsnd_B1'),''],
+      ['PW Screened',    sumF(v,'vhsnd_B3'), pct2(sumF(v,'vhsnd_B3'),sumF(v,'vhsnd_B1'))],
+      ['HIV Reactive',   sumF(v,'vhsnd_B4'), pct2(sumF(v,'vhsnd_B4'),sumF(v,'vhsnd_B3'))],
     ]},
     { title:'HWC', clr:'#1CABE2', rows:[
-      ['PW Registered',sumF(hw,'hwc_B1'),''],
-      ['PW Screened',sumF(hw,'hwc_B2'),pct(sumF(hw,'hwc_B2'),sumF(hw,'hwc_B1'))],
-      ['ANC-1',sumF(hw,'hwc_B21'),pct(sumF(hw,'hwc_B21'),sumF(hw,'hwc_B2'))],
-      ['ANC-2',sumF(hw,'hwc_B22'),pct(sumF(hw,'hwc_B22'),sumF(hw,'hwc_B2'))],
-      ['ANC-3',sumF(hw,'hwc_B23'),pct(sumF(hw,'hwc_B23'),sumF(hw,'hwc_B2'))],
-      ['ANC-4',sumF(hw,'hwc_B24'),pct(sumF(hw,'hwc_B24'),sumF(hw,'hwc_B2'))],
-      ['HIV Reactive',sumF(hw,'hwc_B3'),pct(sumF(hw,'hwc_B3'),sumF(hw,'hwc_B2'))],
+      ['PW Registered',  sumF(hw,'hwc_B1'),''],
+      ['PW Screened',    sumF(hw,'hwc_B2'),  pct2(sumF(hw,'hwc_B2'),sumF(hw,'hwc_B1'))],
+      ['ANC-1',          sumF(hw,'hwc_B21'), pct2(sumF(hw,'hwc_B21'),sumF(hw,'hwc_B2'))],
+      ['ANC-2',          sumF(hw,'hwc_B22'), pct2(sumF(hw,'hwc_B22'),sumF(hw,'hwc_B2'))],
+      ['ANC-3',          sumF(hw,'hwc_B23'), pct2(sumF(hw,'hwc_B23'),sumF(hw,'hwc_B2'))],
+      ['ANC-4',          sumF(hw,'hwc_B24'), pct2(sumF(hw,'hwc_B24'),sumF(hw,'hwc_B2'))],
+      ['HIV Reactive',   sumF(hw,'hwc_B3'),  pct2(sumF(hw,'hwc_B3'),sumF(hw,'hwc_B2'))],
     ]},
     { title:'PHC (CHC/PHC)', clr:'#374EA2', rows:[
-      ['ANC Registrations',sumF(ph,'phc_B1'),''],
-      ['PW Screened HIV',sumF(ph,'phc_B3'),pct(sumF(ph,'phc_B3'),sumF(ph,'phc_B1'))],
-      ['HIV Reactive',sumF(ph,'phc_B2'),pct(sumF(ph,'phc_B2'),sumF(ph,'phc_B3'))],
-      ['Syphilis Reactive',sumF(ph,'phc_B4'),pct(sumF(ph,'phc_B4'),sumF(ph,'phc_B3'))],
+      ['ANC Registrations', sumF(ph,'phc_B1'),''],
+      ['PW Screened HIV',   sumF(ph,'phc_B3'), pct2(sumF(ph,'phc_B3'),sumF(ph,'phc_B1'))],
+      ['HIV Reactive',      sumF(ph,'phc_B2'), pct2(sumF(ph,'phc_B2'),sumF(ph,'phc_B3'))],
+      ['Syphilis Reactive', sumF(ph,'phc_B4'), pct2(sumF(ph,'phc_B4'),sumF(ph,'phc_B3'))],
     ]},
     { title:'PMSMA (CHC/PHC)', clr:'#FFC20E', rows:[
-      ['PW Attending',sumF(pm,'pmsma_B1'),''],
-      ['PW Screened',sumF(pm,'pmsma_B11'),pct(sumF(pm,'pmsma_B11'),sumF(pm,'pmsma_B1'))],
-      ['HIV Reactive',sumF(pm,'pmsma_B12h'),pct(sumF(pm,'pmsma_B12h'),sumF(pm,'pmsma_B11'))],
-      ['Syphilis Reactive',sumF(pm,'pmsma_B12s'),pct(sumF(pm,'pmsma_B12s'),sumF(pm,'pmsma_B11'))],
+      ['PW Attending',      sumF(pm,'pmsma_B1'),''],
+      ['PW Screened',       sumF(pm,'pmsma_B11'),  pct2(sumF(pm,'pmsma_B11'),sumF(pm,'pmsma_B1'))],
+      ['HIV Reactive',      sumF(pm,'pmsma_B12h'), pct2(sumF(pm,'pmsma_B12h'),sumF(pm,'pmsma_B11'))],
+      ['Syphilis Reactive', sumF(pm,'pmsma_B12s'), pct2(sumF(pm,'pmsma_B12s'),sumF(pm,'pmsma_B11'))],
     ]},
   ];
-
   outcomeBlocks.forEach(({title,clr,rows})=>{
     h+=`<div style="border-top:3px solid ${clr};padding-top:10px">
       <div style="font-size:11.5px;font-weight:700;color:${clr};margin-bottom:8px">${title}</div>
@@ -1794,7 +1852,7 @@ function renderClientDash(data) {
   });
   h+=`</div></div>`;
 
-  // ── BLOCK-WISE COVERAGE ──
+  // ── OLD TVA: Block-wise coverage chart ──
   h+=`<div class="cc" style="margin-bottom:16px">
     <div class="cc-head">Block-wise Facility Coverage</div>
     <div class="cc-sub">Number of supervisory visits per block by facility type</div>
@@ -1804,21 +1862,46 @@ function renderClientDash(data) {
 
   document.getElementById('c-client').innerHTML = h;
 
-  // ── STACKED BAR — facility distribution ──
-  const facData = [fc.HWC, fc.VHSND, fc.PHC, fc.PMSMA];
-  const facClrs = ['#1CABE2','#80BD41','#374EA2','#FFC20E'];
+  // ── Clustered Bar: Target vs Achievement ──
+  mkChart('cv-cl-tva-bar',{type:'bar',data:{
+    labels:['HWC','VHSND','PHC/PMSMA','Meetings','MOs'],
+    datasets:[
+      {label:'Target',    data:tgts, backgroundColor:'rgba(0,88,171,.12)', borderColor:'#0058AB', borderWidth:2},
+      {label:'Achievement', data:achs, backgroundColor:clrs.map(c=>c+'cc'), borderColor:clrs, borderWidth:2}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:11}}}},
+      scales:{y:{beginAtZero:true,grid:{color:'#f0f0f0'},ticks:{font:{size:10}}}}}
+  });
+
+  // ── Donut: facility distribution ──
+  const facData   = [hwc, vhsnd, data.filter(r=>r.facility==='PHC').length, data.filter(r=>r.facility==='PMSMA site').length];
   const facLabels = ['HWC','VHSND','PHC','PMSMA'];
+  const facClrs   = ['#1CABE2','#80BD41','#374EA2','#FFC20E'];
+  document.getElementById('cl-tva-leg').innerHTML = facLabels.map((l,i)=>
+    `<span class="leg-item"><span class="leg-dot" style="background:${facClrs[i]}"></span>${l}: ${facData[i]}</span>`).join('');
+  mkChart('cv-cl-tva-fac',{type:'doughnut',data:{
+    labels:facLabels,
+    datasets:[{data:facData, backgroundColor:facClrs, borderWidth:2, borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}}, cutout:'60%'}
+  });
+
+  // ── Stacked facility bar ──
+  const facData2  = [fc.HWC, fc.VHSND, fc.PHC, fc.PMSMA];
+  const facClrs2  = ['#1CABE2','#80BD41','#374EA2','#FFC20E'];
+  const facLabels2= ['HWC','VHSND','PHC','PMSMA'];
   mkChart('cv-cl-fac',{type:'bar',
-    data:{labels:['Facility Visits'],datasets:facLabels.map((lbl,i)=>({
-      label:lbl, data:[facData[i]],
-      backgroundColor:facClrs[i]+'cc', borderColor:facClrs[i], borderWidth:1
+    data:{labels:['Facility Visits'],datasets:facLabels2.map((lbl,i)=>({
+      label:lbl, data:[facData2[i]],
+      backgroundColor:facClrs2[i]+'cc', borderColor:facClrs2[i], borderWidth:1
     }))},
     options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
       plugins:{legend:{position:'right',labels:{font:{size:11}}}},
       scales:{x:{stacked:true,beginAtZero:true},y:{stacked:true,display:false}}}});
 
-  // ── SPIDER CHARTS ──
-  const spiderAxes = ['Supplies','Equipment','Training','Clinical','Linkage'];
+  // ── Spider charts ──
+  const spiderAxes   = ['Supplies','Equipment','Training','Clinical','Linkage'];
   const spiderFields = [
     ['A1','A8','A9','A4'],['A6','A7','ACC1','ACC2','ACC7'],
     ['D2','D3','D5','D6','D7'],['B11','B12','E4a'],['E5','E6','D6'],
@@ -1850,14 +1933,14 @@ function renderClientDash(data) {
           pointLabels:{font:{size:9}}}}}});
   });
 
-  // ── BLOCK COVERAGE CHART ──
-  const blks=[...new Set(data.map(r=>r.block))].sort();
-  const fkeys2=['HWC','VHSND','PHC','PMSMA site'];
+  // ── Block coverage chart ──
+  const blks  = [...new Set(data.map(r=>r.block))].sort();
+  const fkeys2= ['HWC','VHSND','PHC','PMSMA site'];
   mkChart('cv-cl-blk',{type:'bar',
     data:{labels:blks,datasets:fkeys2.map((fk,i)=>({
       label:fk==='PMSMA site'?'PMSMA':fk,
       data:blks.map(b=>data.filter(r=>r.block===b&&r.facility===fk).length),
-      backgroundColor:facClrs[i]+'cc',borderColor:facClrs[i],borderWidth:1
+      backgroundColor:facClrs2[i]+'cc',borderColor:facClrs2[i],borderWidth:1
     }))},
     options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
       plugins:{legend:{labels:{font:{size:10}}}},
